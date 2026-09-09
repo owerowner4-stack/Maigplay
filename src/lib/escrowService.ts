@@ -6,6 +6,7 @@
 import { saveStoredQueue, loadStoredQueue, PriorityCountry, ModerationQueueItem } from '../data/adminStore';
 import { auth, db } from './firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { EscrowPartyDetails } from '../components/EscrowDetailsModal';
 
 export type EscrowStatus = 
   | 'escrow_held'              // Funds locked in Escrow
@@ -27,6 +28,10 @@ export interface EscrowTransaction {
   buyerName: string;
   sellerId: string;
   sellerName: string;
+  buyer: EscrowPartyDetails;
+  seller: EscrowPartyDetails;
+  city: string;
+  dueDate: string;
   status: EscrowStatus;
   escrowFeePercent: number;
   platformFee: number;
@@ -78,6 +83,10 @@ export async function createEscrowHold(params: {
   buyerName: string;
   sellerId: string;
   sellerName: string;
+  buyer: EscrowPartyDetails;
+  seller: EscrowPartyDetails;
+  city: string;
+  dueDate: string;
 }): Promise<{
   success: boolean;
   escrowTxId: string;
@@ -98,7 +107,17 @@ export async function createEscrowHold(params: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${idToken}`
     },
-    body: JSON.stringify({ bccDeal: params })
+    body: JSON.stringify({
+      bccDeal: {
+        amount: params.price,
+        externalId: params.orderId,
+        city: params.city,
+        dueDate: params.dueDate,
+        buyer: params.buyer,
+        seller: params.seller,
+        address: { city: params.city }
+      }
+    })
   });
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null) as { error?: string } | null;
@@ -128,6 +147,10 @@ export async function createEscrowHold(params: {
     buyerName: params.buyerName,
     sellerId: params.sellerId,
     sellerName: params.sellerName,
+    buyer: params.buyer,
+    seller: params.seller,
+    city: params.city,
+    dueDate: params.dueDate,
     status: 'escrow_held',
     escrowFeePercent: feePercent,
     platformFee,
