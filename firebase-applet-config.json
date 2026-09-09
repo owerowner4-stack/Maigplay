@@ -1,12 +1,12 @@
 {
-  "projectId": "possible-bloom-nt3g1",
-  "appId": "1:799060070827:web:5a27bbe0cd350c51cac2ee",
-  "apiKey": "AIzaSyB89VfgZ8RyMBtvGNVSAwm_RBtye9xmSFA",
-  "authDomain": "possible-bloom-nt3g1.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-magicplay-4dc90b3d-ee3d-4f0e-9cf6-66d6e92b57c5",
-  "storageBucket": "possible-bloom-nt3g1.firebasestorage.app",
-  "messagingSenderId": "799060070827",
-  "measurementId": "",
-  "oAuthClientId": "799060070827-1esqqpscnfvlhn3hsjq2fj8fv4765l8k.apps.googleusercontent.com",
+  "projectId": "magicplay-524d5",
+  "appId": "1:343400876943:web:633fdd214b111d9fd359fa",
+  "apiKey": "AIzaSyB5Ab1A2CVZcOvz1sYsowLag6T4BRNYPfI",
+  "authDomain": "magicplay-524d5.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "magicplay-524d5.firebasestorage.app",
+  "messagingSenderId": "343400876943",
+  "measurementId": "G-Y04S1X0DKY",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
