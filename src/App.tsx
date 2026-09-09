@@ -130,7 +130,7 @@ function MainAppContent() {
       });
     } catch (err) {
       console.error('Escrow hold failed:', err);
-      toast.error('Оплата не проведена: подключите сервер escrow-провайдера.');
+      toast.error('Оплата не проведена: escrow-backend не настроен на Render.');
       return;
     }
 
