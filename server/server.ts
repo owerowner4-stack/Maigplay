@@ -83,7 +83,8 @@ app.post('/api/escrow/holds', async (req, res) => {
     res.status(201).json({ escrowTxId: dealId, status: 'escrow_held', provider: 'bcc' });
   } catch (error) {
     console.error('BCC hold failed:', error);
-    res.status(502).json({ error: 'Escrow provider request failed.' });
+    const message = error instanceof Error ? error.message : 'Escrow provider request failed.';
+    res.status(502).json({ error: message });
   }
 });
 
@@ -92,7 +93,8 @@ app.get('/api/escrow/deals/:id', async (req, res) => {
     res.json(await bccRequest(`/ext/deals/${encodeURIComponent(req.params.id)}`, 'GET'));
   } catch (error) {
     console.error('BCC status failed:', error);
-    res.status(502).json({ error: 'Escrow provider request failed.' });
+    const message = error instanceof Error ? error.message : 'Escrow provider request failed.';
+    res.status(502).json({ error: message });
   }
 });
 
@@ -101,7 +103,8 @@ app.put('/api/escrow/deals/:id', async (req, res) => {
     res.json(await bccRequest(`/ext/deals/${encodeURIComponent(req.params.id)}`, 'PUT'));
   } catch (error) {
     console.error('BCC status update failed:', error);
-    res.status(502).json({ error: 'Escrow provider request failed.' });
+    const message = error instanceof Error ? error.message : 'Escrow provider request failed.';
+    res.status(502).json({ error: message });
   }
 });
 
