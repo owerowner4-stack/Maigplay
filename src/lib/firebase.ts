@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAnalytics, isSupported } from 'firebase/analytics';
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -28,6 +29,14 @@ import firebaseConfig from '../../firebase-applet-config.json';
 // Initialize Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+// Initialize Analytics if supported
+export let analytics: any = null;
+if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+  isSupported().then(supported => {
+    if (supported) analytics = getAnalytics(app);
+  }).catch(() => {});
+}
+
 // Initialize Authentication
 export const auth = getAuth(app);
 
@@ -37,10 +46,12 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
-// Initialize Firestore
-export const db: Firestore = firebaseConfig.firestoreDatabaseId 
+// Initialize Firestore (default database in user's personal project)
+export const db: Firestore = (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') 
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
+
+export const PLATFORM_OWNER_EMAIL = 'random11234500@gmail.com';
 
 export interface UserProfile {
   uid: string;
@@ -50,6 +61,10 @@ export interface UserProfile {
   balance: number;
   rating?: number;
   salesCount?: number;
+  role?: 'owner' | 'admin' | 'moderator' | 'user';
+  isOwner?: boolean;
+  isAdmin?: boolean;
+  permissions?: string[];
   createdAt?: any;
 }
 
@@ -63,17 +78,25 @@ export async function loginWithGoogle(): Promise<UserProfile | null> {
     const userRef = doc(db, 'users', user.uid);
     const snap = await getDoc(userRef);
 
+    const isOwnerUser = user.email?.toLowerCase().trim() === PLATFORM_OWNER_EMAIL.toLowerCase();
+
     let profile: UserProfile;
 
     if (!snap.exists()) {
       profile = {
         uid: user.uid,
-        displayName: user.displayName || 'Пользователь MagicPlay',
+        displayName: user.displayName || (isOwnerUser ? 'Владелец MagicPlay' : 'Пользователь MagicPlay'),
         email: user.email || '',
         photoURL: user.photoURL || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
         balance: 0,
-        rating: 0,
-        salesCount: 0,
+        rating: isOwnerUser ? 5.0 : 0,
+        salesCount: isOwnerUser ? 100 : 0,
+        role: isOwnerUser ? 'owner' : 'user',
+        isOwner: isOwnerUser,
+        isAdmin: isOwnerUser,
+        permissions: isOwnerUser 
+          ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
+          : ['USER'],
         createdAt: serverTimestamp()
       };
       await setDoc(userRef, profile);
@@ -83,14 +106,51 @@ export async function loginWithGoogle(): Promise<UserProfile | null> {
         ...data,
         displayName: user.displayName || data.displayName,
         photoURL: user.photoURL || data.photoURL,
-        email: user.email || data.email
+        email: user.email || data.email,
+        role: isOwnerUser ? 'owner' : (data.role || 'user'),
+        isOwner: isOwnerUser || !!data.isOwner,
+        isAdmin: isOwnerUser || !!data.isAdmin,
+        permissions: isOwnerUser 
+          ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
+          : (data.permissions || ['USER'])
       };
       // Keep basic info updated
       await updateDoc(userRef, {
         displayName: profile.displayName,
         photoURL: profile.photoURL,
-        email: profile.email
+        email: profile.email,
+        role: profile.role,
+        isOwner: profile.isOwner,
+        isAdmin: profile.isAdmin,
+        permissions: profile.permissions
       });
+    }
+
+    // Persist owner record in Firestore collections `admins` and `settings/platform_owner`
+    if (isOwnerUser) {
+      try {
+        await setDoc(doc(db, 'admins', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          displayName: profile.displayName,
+          role: 'owner',
+          isOwner: true,
+          grantedAt: serverTimestamp(),
+          databaseId: firebaseConfig.firestoreDatabaseId || 'default'
+        }, { merge: true });
+
+        await setDoc(doc(db, 'settings', 'platform_owner'), {
+          ownerEmail: user.email,
+          ownerUid: user.uid,
+          ownerName: profile.displayName,
+          role: 'owner',
+          isOwner: true,
+          database: firebaseConfig.projectId || 'magicplay-524d5',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Owner base document sync notice:', err);
+      }
     }
 
     return profile;
