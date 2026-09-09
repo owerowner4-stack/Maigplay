@@ -64,6 +64,14 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'magicplay-escrow-backend' });
 });
 
+app.get('/', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'magicplay-escrow-backend',
+    message: 'Escrow backend is running.'
+  });
+});
+
 app.post('/api/escrow/holds', async (req, res) => {
   try {
     const payload = req.body?.bccDeal;
