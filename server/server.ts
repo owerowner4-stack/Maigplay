@@ -4,107 +4,211 @@ import path from 'node:path';
 
 const app = express();
 const port = Number(process.env.PORT) || 10000;
-const bccBaseUrl = (process.env.BCC_ESCROW_BASE_URL || '').replace(/\/$/, '');
-const bccTokenUrl = process.env.BCC_OAUTH_TOKEN_URL || '';
+
+const bccBaseUrl = (
+  process.env.BCC_ESCROW_BASE_URL ||
+  process.env.BCC_BASE_URL ||
+  ''
+).replace(/\/$/, '');
+
+const bccTokenUrl =
+  process.env.BCC_OAUTH_TOKEN_URL ||
+  process.env.BCC_TOKEN_URL ||
+  '';
+
 const bccClientId = process.env.BCC_CLIENT_ID || '';
 const bccClientSecret = process.env.BCC_CLIENT_SECRET || '';
-const bccScope = process.env.BCC_SCOPE || 'bcc.application.escrow.api';
+const bccScope =
+  process.env.BCC_SCOPE || 'bcc.application.escrow.api';
+
 const frontendDirectory = path.join(process.cwd(), 'dist');
 
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || false }));
+app.use(cors({
+  origin: process.env.FRONTEND_ORIGIN || false
+}));
+
 app.use(express.json({ limit: '32kb' }));
 app.use(express.static(frontendDirectory));
 
-function requireConfig() {
-  if (!bccBaseUrl || !bccTokenUrl || !bccClientId || !bccClientSecret) {
-    throw new Error('BCC OAuth environment variables are not configured.');
+function requireBccConfig(): void {
+  if (
+    !bccBaseUrl ||
+    !bccTokenUrl ||
+    !bccClientId ||
+    !bccClientSecret
+  ) {
+    throw new Error(
+      'BCC OAuth environment variables are not configured.'
+    );
   }
 }
 
 async function getBccToken(): Promise<string> {
-  requireConfig();
+  requireBccConfig();
+
   const response = await fetch(bccTokenUrl, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${bccClientId}:${bccClientSecret}`).toString('base64')}`
+      Authorization:
+        `Basic ${Buffer.from(
+          `${bccClientId}:${bccClientSecret}`
+        ).toString('base64')}`
     },
     body: new URLSearchParams({
       grant_type: 'client_credentials',
       scope: bccScope
     })
   });
+
+  const data = await response.json().catch(() => null) as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  } | null;
+
   if (!response.ok) {
-    throw new Error(`BCC OAuth rejected the request (${response.status}).`);
+    throw new Error(
+      data?.error_description ||
+      data?.error ||
+      `BCC OAuth rejected the request (${response.status}).`
+    );
   }
-  const data = await response.json() as { access_token?: string };
-  if (!data.access_token) {
-    throw new Error('BCC OAuth response did not contain access_token.');
+
+  if (!data?.access_token) {
+    throw new Error(
+      'BCC OAuth response did not contain access_token.'
+    );
   }
+
   return data.access_token;
 }
 
-async function bccRequest(path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown) {
+async function bccRequest(
+  requestPath: string,
+  method: 'GET' | 'POST' | 'PUT',
+  body?: unknown
+): Promise<any> {
   const token = await getBccToken();
-  const response = await fetch(`${bccBaseUrl}${path}`, {
-    method,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  const data = await response.json().catch(() => null);
+
+  const response = await fetch(
+    `${bccBaseUrl}${requestPath}`,
+    {
+      method,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: body === undefined
+        ? undefined
+        : JSON.stringify(body)
+    }
+  );
+
+  const data = await response.json().catch(() => null) as {
+    result?: string;
+    resultMessage?: string;
+    resultObject?: unknown;
+  } | null;
+
   if (!response.ok) {
-    throw new Error(`BCC Escrow rejected the request (${response.status}).`);
+    throw new Error(
+      data?.resultMessage ||
+      `BCC Escrow rejected the request (${response.status}).`
+    );
   }
+
   return data;
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'magicplay-escrow-backend' });
+  res.json({
+    ok: true,
+    service: 'magicplay-escrow-backend'
+  });
 });
 
 app.post('/api/escrow/holds', async (req, res) => {
   try {
     const payload = req.body?.bccDeal;
+
     if (!payload || typeof payload !== 'object') {
-      res.status(400).json({ error: 'bccDeal payload is required.' });
+      res.status(400).json({
+        error: 'bccDeal payload is required.'
+      });
       return;
     }
-    const result = await bccRequest('/ext/deals', 'POST', payload);
-    const dealId = result?.resultObject?.dealId;
+
+    const result = await bccRequest(
+      '/ext/deals',
+      'POST',
+      payload
+    );
+
+    const dealId =
+      (result?.resultObject as { dealId?: string } | undefined)
+        ?.dealId;
+
     if (!dealId) {
-      res.status(502).json({ error: 'BCC did not return a dealId.' });
+      res.status(502).json({
+        error: 'BCC did not return a dealId.'
+      });
       return;
     }
-    res.status(201).json({ escrowTxId: dealId, status: 'escrow_held', provider: 'bcc' });
+
+    res.status(201).json({
+      escrowTxId: dealId,
+      status: 'escrow_held',
+      provider: 'bcc'
+    });
   } catch (error) {
     console.error('BCC hold failed:', error);
-    const message = error instanceof Error ? error.message : 'Escrow provider request failed.';
-    res.status(502).json({ error: message });
+
+    res.status(502).json({
+      error: error instanceof Error
+        ? error.message
+        : 'Escrow provider request failed.'
+    });
   }
 });
 
 app.get('/api/escrow/deals/:id', async (req, res) => {
   try {
-    res.json(await bccRequest(`/ext/deals/${encodeURIComponent(req.params.id)}`, 'GET'));
+    const result = await bccRequest(
+      `/ext/deals/${encodeURIComponent(req.params.id)}`,
+      'GET'
+    );
+
+    res.json(result);
   } catch (error) {
     console.error('BCC status failed:', error);
-    const message = error instanceof Error ? error.message : 'Escrow provider request failed.';
-    res.status(502).json({ error: message });
+
+    res.status(502).json({
+      error: error instanceof Error
+        ? error.message
+        : 'Escrow provider request failed.'
+    });
   }
 });
 
 app.put('/api/escrow/deals/:id', async (req, res) => {
   try {
-    res.json(await bccRequest(`/ext/deals/${encodeURIComponent(req.params.id)}`, 'PUT'));
+    const result = await bccRequest(
+      `/ext/deals/${encodeURIComponent(req.params.id)}`,
+      'PUT'
+    );
+
+    res.json(result);
   } catch (error) {
     console.error('BCC status update failed:', error);
-    const message = error instanceof Error ? error.message : 'Escrow provider request failed.';
-    res.status(502).json({ error: message });
+
+    res.status(502).json({
+      error: error instanceof Error
+        ? error.message
+        : 'Escrow provider request failed.'
+    });
   }
 });
 
@@ -113,9 +217,14 @@ app.get('*', (req, res, next) => {
     next();
     return;
   }
-  res.sendFile(path.join(frontendDirectory, 'index.html'));
+
+  res.sendFile(
+    path.join(frontendDirectory, 'index.html')
+  );
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`MagicPlay escrow backend listening on ${port}`);
+  console.log(
+    `MagicPlay escrow backend listening on ${port}`
+  );
 });
