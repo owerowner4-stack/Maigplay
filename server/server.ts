@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const app = express();
 const port = Number(process.env.PORT) || 10000;
@@ -8,9 +10,12 @@ const bccTokenUrl = process.env.BCC_OAUTH_TOKEN_URL || '';
 const bccClientId = process.env.BCC_CLIENT_ID || '';
 const bccClientSecret = process.env.BCC_CLIENT_SECRET || '';
 const bccScope = process.env.BCC_SCOPE || 'bcc.application.escrow.api';
+const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const frontendDirectory = path.join(projectRoot, 'dist');
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || false }));
 app.use(express.json({ limit: '32kb' }));
+app.use(express.static(frontendDirectory));
 
 function requireConfig() {
   if (!bccBaseUrl || !bccTokenUrl || !bccClientId || !bccClientSecret) {
@@ -64,14 +69,6 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'magicplay-escrow-backend' });
 });
 
-app.get('/', (_req, res) => {
-  res.json({
-    ok: true,
-    service: 'magicplay-escrow-backend',
-    message: 'Escrow backend is running.'
-  });
-});
-
 app.post('/api/escrow/holds', async (req, res) => {
   try {
     const payload = req.body?.bccDeal;
@@ -108,6 +105,14 @@ app.put('/api/escrow/deals/:id', async (req, res) => {
     console.error('BCC status update failed:', error);
     res.status(502).json({ error: 'Escrow provider request failed.' });
   }
+});
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    next();
+    return;
+  }
+  res.sendFile(path.join(frontendDirectory, 'index.html'));
 });
 
 app.listen(port, '0.0.0.0', () => {
