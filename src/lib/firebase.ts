@@ -74,56 +74,58 @@ export async function loginWithGoogle(): Promise<UserProfile | null> {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
 
-    // Check or create profile in Firestore
-    const userRef = doc(db, 'users', user.uid);
-    const snap = await getDoc(userRef);
-
     const isOwnerUser = user.email?.toLowerCase().trim() === PLATFORM_OWNER_EMAIL.toLowerCase();
 
-    let profile: UserProfile;
+    let profile: UserProfile = {
+      uid: user.uid,
+      displayName: user.displayName || (isOwnerUser ? 'Владелец MagicPlay' : 'Пользователь MagicPlay'),
+      email: user.email || '',
+      photoURL: user.photoURL || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+      balance: 0,
+      rating: isOwnerUser ? 5.0 : 0,
+      salesCount: isOwnerUser ? 100 : 0,
+      role: isOwnerUser ? 'owner' : 'user',
+      isOwner: isOwnerUser,
+      isAdmin: isOwnerUser,
+      permissions: isOwnerUser 
+        ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
+        : ['USER']
+    };
 
-    if (!snap.exists()) {
-      profile = {
-        uid: user.uid,
-        displayName: user.displayName || (isOwnerUser ? 'Владелец MagicPlay' : 'Пользователь MagicPlay'),
-        email: user.email || '',
-        photoURL: user.photoURL || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-        balance: 0,
-        rating: isOwnerUser ? 5.0 : 0,
-        salesCount: isOwnerUser ? 100 : 0,
-        role: isOwnerUser ? 'owner' : 'user',
-        isOwner: isOwnerUser,
-        isAdmin: isOwnerUser,
-        permissions: isOwnerUser 
-          ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
-          : ['USER'],
-        createdAt: serverTimestamp()
-      };
-      await setDoc(userRef, profile);
-    } else {
-      const data = snap.data() as UserProfile;
-      profile = {
-        ...data,
-        displayName: user.displayName || data.displayName,
-        photoURL: user.photoURL || data.photoURL,
-        email: user.email || data.email,
-        role: isOwnerUser ? 'owner' : (data.role || 'user'),
-        isOwner: isOwnerUser || !!data.isOwner,
-        isAdmin: isOwnerUser || !!data.isAdmin,
-        permissions: isOwnerUser 
-          ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
-          : (data.permissions || ['USER'])
-      };
-      // Keep basic info updated
-      await updateDoc(userRef, {
-        displayName: profile.displayName,
-        photoURL: profile.photoURL,
-        email: profile.email,
-        role: profile.role,
-        isOwner: profile.isOwner,
-        isAdmin: profile.isAdmin,
-        permissions: profile.permissions
-      });
+    try {
+      // Check or create profile in Firestore
+      const userRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(userRef);
+
+      if (!snap.exists()) {
+        await setDoc(userRef, { ...profile, createdAt: serverTimestamp() });
+      } else {
+        const data = snap.data() as UserProfile;
+        profile = {
+          ...data,
+          displayName: user.displayName || data.displayName,
+          photoURL: user.photoURL || data.photoURL,
+          email: user.email || data.email,
+          role: isOwnerUser ? 'owner' : (data.role || 'user'),
+          isOwner: isOwnerUser || !!data.isOwner,
+          isAdmin: isOwnerUser || !!data.isAdmin,
+          permissions: isOwnerUser 
+            ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
+            : (data.permissions || ['USER'])
+        };
+        // Keep basic info updated
+        await updateDoc(userRef, {
+          displayName: profile.displayName,
+          photoURL: profile.photoURL,
+          email: profile.email,
+          role: profile.role,
+          isOwner: profile.isOwner,
+          isAdmin: profile.isAdmin,
+          permissions: profile.permissions
+        });
+      }
+    } catch (firestoreErr) {
+      console.warn('Firestore profile sync waiting for security rules update:', firestoreErr);
     }
 
     // Persist owner record in Firestore collections `admins` and `settings/platform_owner`
