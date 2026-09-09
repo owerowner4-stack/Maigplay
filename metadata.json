@@ -1,0 +1,6 @@
+{
+  "name": "MagicPlay",
+  "description": "Игровая торговая площадка цифровых товаров и услуг: аккаунты, игровая валюта, ключи, донат и прокачка",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

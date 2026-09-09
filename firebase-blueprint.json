@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with balance and sales info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "balance": { "type": "number" },
+        "rating": { "type": "number" },
+        "salesCount": { "type": "number" }
+      },
+      "required": ["uid", "displayName", "email", "balance"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Game marketplace product or account listing",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["title", "gameId", "price"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Escrow transaction order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "productTitle": { "type": "string" },
+        "price": { "type": "number" },
+        "buyerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "productId", "price", "buyerId", "sellerId", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Marketplace products catalog"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Escrow orders and transactions"
+    }
+  }
+}
