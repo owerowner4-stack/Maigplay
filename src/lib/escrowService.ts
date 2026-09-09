@@ -101,7 +101,7 @@ export async function createEscrowHold(params: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${idToken}`
     },
-    body: JSON.stringify(params)
+    body: JSON.stringify({ bccDeal: params })
   });
   if (!response.ok) {
     throw new Error(`Escrow provider rejected the hold (${response.status}).`);
