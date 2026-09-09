@@ -20,6 +20,35 @@ type BccResponse = {
   };
 };
 
+function validateBccDeal(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') {
+    return 'bccDeal payload is required.';
+  }
+
+  const deal = payload as Record<string, unknown>;
+  const missing: string[] = [];
+  if (typeof deal.amount !== 'number' || deal.amount <= 0) missing.push('amount');
+  if (typeof deal.externalId !== 'string' || !deal.externalId) missing.push('externalId');
+
+  for (const party of ['buyer', 'seller']) {
+    const value = deal[party];
+    if (!value || typeof value !== 'object') {
+      missing.push(party);
+      continue;
+    }
+    const details = value as Record<string, unknown>;
+    for (const field of ['accountNumber', 'fullName', 'iin', 'phoneNumber', 'signDate']) {
+      if (typeof details[field] !== 'string' || !details[field]) {
+        missing.push(`${party}.${field}`);
+      }
+    }
+  }
+
+  return missing.length > 0
+    ? `BCC deal is missing required fields: ${missing.join(', ')}.`
+    : null;
+}
+
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || false }));
 app.use(express.json({ limit: '32kb' }));
 app.use(express.static(frontendDirectory));
@@ -65,12 +94,19 @@ async function bccRequest(path: string, method: 'GET' | 'POST' | 'PUT', body?: u
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-  const data = await response.json().catch(() => null) as BccResponse | null;
+  const responseText = await response.text();
+  let data: BccResponse | null = null;
+  try {
+    data = responseText ? JSON.parse(responseText) as BccResponse : null;
+  } catch {
+    data = null;
+  }
   if (!response.ok) {
     throw new Error(
       data?.resultMessage ||
       data?.message ||
       data?.error ||
+      (responseText && responseText.length <= 500 ? responseText : undefined) ||
       `BCC Escrow rejected the request (${response.status}).`
     );
   }
@@ -84,8 +120,9 @@ app.get('/health', (_req, res) => {
 app.post('/api/escrow/holds', async (req, res) => {
   try {
     const payload = req.body?.bccDeal;
-    if (!payload || typeof payload !== 'object') {
-      res.status(400).json({ error: 'bccDeal payload is required.' });
+    const validationError = validateBccDeal(payload);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
       return;
     }
     const result = await bccRequest('/ext/deals', 'POST', payload);
