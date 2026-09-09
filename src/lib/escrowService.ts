@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { loadEscrowHCBConfig, saveEscrowHCBConfig, saveStoredQueue, loadStoredQueue, PriorityCountry, ModerationQueueItem } from '../data/adminStore';
+import { saveStoredQueue, loadStoredQueue, PriorityCountry, ModerationQueueItem } from '../data/adminStore';
 import { auth, db } from './firebase';
-import { doc, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 export type EscrowStatus = 
   | 'escrow_held'              // Funds locked in Escrow
@@ -86,16 +86,16 @@ export async function createEscrowHold(params: {
   sellerPayout: number;
   message: string;
 }> {
-  const config = loadEscrowHCBConfig();
-  if (!config.isEscrowActive || !config.escrowApiEndpoint) {
-    throw new Error('Escrow is not configured. Configure a server-side escrow provider before accepting payments.');
+  const backendUrl = import.meta.env.VITE_ESCROW_BACKEND_URL?.trim();
+  if (!backendUrl) {
+    throw new Error('Escrow backend URL is not configured.');
   }
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) {
     throw new Error('Authentication is required before creating an escrow hold.');
   }
 
-  const response = await fetch(`${config.escrowApiEndpoint}/holds`, {
+  const response = await fetch(`${backendUrl.replace(/\/$/, '')}/api/escrow/holds`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -114,7 +114,7 @@ export async function createEscrowHold(params: {
     throw new Error('Escrow provider returned an invalid hold response.');
   }
 
-  const feePercent = config.escrowFeePercent || 3.0;
+  const feePercent = 3.0;
   const platformFee = Math.round(params.price * (feePercent / 100));
   const sellerPayout = Math.max(0, params.price - platformFee);
   const escrowTxId = providerResult.escrowTxId;
@@ -134,8 +134,8 @@ export async function createEscrowHold(params: {
     escrowFeePercent: feePercent,
     platformFee,
     sellerPayout,
-    hcbTerminal: config.hcbTerminalId || 'TERM_ALMATY_01',
-    hcbMerchantId: config.hcbMerchantId || 'HCB_KZ_994182',
+    hcbTerminal: '',
+    hcbMerchantId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     verificationChecks: {
