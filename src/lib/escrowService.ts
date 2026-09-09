@@ -101,7 +101,8 @@ export async function createEscrowHold(params: {
     body: JSON.stringify({ bccDeal: params })
   });
   if (!response.ok) {
-    throw new Error(`Escrow provider rejected the hold (${response.status}).`);
+    const errorBody = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(errorBody?.error || `Escrow backend rejected the hold (${response.status}).`);
   }
   const providerResult = await response.json() as {
     escrowTxId?: string;
