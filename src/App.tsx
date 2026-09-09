@@ -113,7 +113,8 @@ function MainAppContent() {
       });
     } catch (err) {
       console.error('Error creating escrow order:', err);
-      toast.error('Оплата не запущена: escrow-провайдер не подключён.');
+      const message = err instanceof Error ? err.message : 'Неизвестная ошибка Firestore';
+      toast.error(`Заказ не создан: ${message}`);
       return;
     }
 
@@ -130,7 +131,8 @@ function MainAppContent() {
       });
     } catch (err) {
       console.error('Escrow hold failed:', err);
-      toast.error('Оплата не проведена: escrow-backend не настроен на Render.');
+      const message = err instanceof Error ? err.message : 'Неизвестная ошибка escrow backend';
+      toast.error(`Оплата не проведена: ${message}`);
       return;
     }
 
