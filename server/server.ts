@@ -11,6 +11,15 @@ const bccClientSecret = process.env.BCC_CLIENT_SECRET || '';
 const bccScope = process.env.BCC_SCOPE || 'bcc.application.escrow.api';
 const frontendDirectory = path.join(process.cwd(), 'dist');
 
+type BccResponse = {
+  resultMessage?: string;
+  message?: string;
+  error?: string;
+  resultObject?: {
+    dealId?: string;
+  };
+};
+
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || false }));
 app.use(express.json({ limit: '32kb' }));
 app.use(express.static(frontendDirectory));
@@ -56,12 +65,7 @@ async function bccRequest(path: string, method: 'GET' | 'POST' | 'PUT', body?: u
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-  const data = await response.json().catch(() => null) as {
-    resultMessage?: string;
-    message?: string;
-    error?: string;
-    resultObject?: unknown;
-  } | null;
+  const data = await response.json().catch(() => null) as BccResponse | null;
   if (!response.ok) {
     throw new Error(
       data?.resultMessage ||
