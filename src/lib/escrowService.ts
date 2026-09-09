@@ -86,10 +86,7 @@ export async function createEscrowHold(params: {
   sellerPayout: number;
   message: string;
 }> {
-  const backendUrl = import.meta.env.VITE_ESCROW_BACKEND_URL?.trim();
-  if (!backendUrl) {
-    throw new Error('Escrow backend URL is not configured.');
-  }
+  const backendUrl = import.meta.env.VITE_ESCROW_BACKEND_URL?.trim() || window.location.origin;
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) {
     throw new Error('Authentication is required before creating an escrow hold.');
