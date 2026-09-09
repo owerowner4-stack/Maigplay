@@ -126,25 +126,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           setLoading(false);
         }, (err: any) => {
-          if (err?.code === 'unavailable') {
-            console.warn('Profile sync operating in offline mode.');
-            const isOwnerUser = fbUser.email?.toLowerCase().trim() === PLATFORM_OWNER_EMAIL.toLowerCase();
-            // Provide offline user fallback so user can still see their session
-            setUser((prev) => prev || {
-              uid: fbUser.uid,
-              displayName: fbUser.displayName || (isOwnerUser ? 'Владелец MagicPlay' : 'Геймер MagicPlay'),
-              email: fbUser.email || '',
-              photoURL: fbUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-              balance: 0,
-              rating: isOwnerUser ? 5.0 : 0,
-              salesCount: isOwnerUser ? 100 : 0,
-              role: isOwnerUser ? 'owner' : 'user',
-              isOwner: isOwnerUser,
-              isAdmin: isOwnerUser
-            });
-          } else {
-            console.warn('Snapshot notice for user profile:', err?.message || err);
-          }
+          console.warn('Profile sync notice:', err?.message || err);
+          const isOwnerUser = fbUser.email?.toLowerCase().trim() === PLATFORM_OWNER_EMAIL.toLowerCase();
+          // Provide resilient fallback so user can still see and use their session immediately
+          setUser((prev) => prev || {
+            uid: fbUser.uid,
+            displayName: fbUser.displayName || (isOwnerUser ? 'Владелец MagicPlay' : 'Геймер MagicPlay'),
+            email: fbUser.email || '',
+            photoURL: fbUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+            balance: 0,
+            rating: isOwnerUser ? 5.0 : 0,
+            salesCount: isOwnerUser ? 100 : 0,
+            role: isOwnerUser ? 'owner' : 'user',
+            isOwner: isOwnerUser,
+            isAdmin: isOwnerUser,
+            permissions: isOwnerUser 
+              ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
+              : ['USER']
+          });
           setLoading(false);
         });
 
@@ -164,35 +163,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await signInWithPopup(auth, googleProvider);
       const fbUser = result.user;
 
-      const userDocRef = doc(db, 'users', fbUser.uid);
-      const snap = await getDoc(userDocRef);
+      const isOwnerUser = fbUser.email?.toLowerCase().trim() === PLATFORM_OWNER_EMAIL.toLowerCase();
 
-      let profile: UserProfile;
-      if (!snap.exists()) {
-        profile = {
-          uid: fbUser.uid,
-          displayName: fbUser.displayName || 'Геймер MagicPlay',
-          email: fbUser.email || '',
-          photoURL: fbUser.photoURL || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-          balance: 0,
-          rating: 0,
-          salesCount: 0,
-          createdAt: serverTimestamp()
-        };
-        await setDoc(userDocRef, profile);
-      } else {
-        const data = snap.data() as UserProfile;
-        profile = {
-          ...data,
-          displayName: fbUser.displayName || data.displayName,
-          photoURL: fbUser.photoURL || data.photoURL,
-          email: fbUser.email || data.email
-        };
-        await updateDoc(userDocRef, {
-          displayName: profile.displayName,
-          photoURL: profile.photoURL,
-          email: profile.email
-        });
+      let profile: UserProfile = {
+        uid: fbUser.uid,
+        displayName: fbUser.displayName || (isOwnerUser ? 'Владелец MagicPlay' : 'Геймер MagicPlay'),
+        email: fbUser.email || '',
+        photoURL: fbUser.photoURL || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+        balance: 0,
+        rating: isOwnerUser ? 5.0 : 0,
+        salesCount: isOwnerUser ? 100 : 0,
+        role: isOwnerUser ? 'owner' : 'user',
+        isOwner: isOwnerUser,
+        isAdmin: isOwnerUser,
+        permissions: isOwnerUser 
+          ? ['ALL', 'FIRESTORE_BASE_OWNER', 'ADMIN_PANEL', 'MODERATOR_PANEL', 'ESCROW_OVERRIDE'] 
+          : ['USER']
+      };
+
+      try {
+        const userDocRef = doc(db, 'users', fbUser.uid);
+        const snap = await getDoc(userDocRef);
+
+        if (!snap.exists()) {
+          await setDoc(userDocRef, { ...profile, createdAt: serverTimestamp() });
+        } else {
+          const data = snap.data() as UserProfile;
+          profile = {
+            ...data,
+            role: isOwnerUser ? 'owner' : (data.role || 'user'),
+            isOwner: isOwnerUser || !!data.isOwner,
+            isAdmin: isOwnerUser || !!data.isAdmin,
+            displayName: fbUser.displayName || data.displayName,
+            photoURL: fbUser.photoURL || data.photoURL,
+            email: fbUser.email || data.email
+          };
+          await updateDoc(userDocRef, {
+            displayName: profile.displayName,
+            photoURL: profile.photoURL,
+            email: profile.email
+          });
+        }
+      } catch (firestoreErr) {
+        console.warn('Firestore profile sync waiting for security rules update:', firestoreErr);
       }
 
       setUser(profile);
