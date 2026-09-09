@@ -35,9 +35,7 @@ import {
   updateProductInFirestore,
   OrderDoc 
 } from './lib/firestoreService';
-import { createEscrowHold } from './lib/escrowService';
-import { EscrowDetailsModal } from './components/EscrowDetailsModal';
-import type { EscrowPartyDetails } from './components/EscrowDetailsModal';
+import { addModeratorReview } from './data/adminStore';
 
 function MainAppContent() {
   const { user, topupBalance } = useAuth();
@@ -54,7 +52,6 @@ function MainAppContent() {
   const [showTopupModal, setShowTopupModal] = useState<boolean>(false);
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
   const [showModeratorModal, setShowModeratorModal] = useState<boolean>(false);
-  const [escrowProduct, setEscrowProduct] = useState<Product | null>(null);
   
   // Mobile Navigation
   const [mobileTab, setMobileTab] = useState<string>('home');
@@ -100,22 +97,11 @@ function MainAppContent() {
 
   const userBalance = user ? user.balance : 0;
 
-  const handleStartDeal = (product: Product) => {
+  const handleStartDeal = async (product: Product) => {
     if (!user) {
-      toast.error('Войдите в аккаунт перед оплатой.');
+      toast.error('Войдите в аккаунт, чтобы открыть чат сделки.');
       return;
     }
-    setEscrowProduct(product);
-  };
-
-  const handleEscrowDetails = async (details: {
-    buyer: EscrowPartyDetails;
-    seller: EscrowPartyDetails;
-    city: string;
-    dueDate: string;
-  }) => {
-    const product = escrowProduct;
-    if (!product || !user) return;
 
     let orderId: string;
     try {
@@ -126,56 +112,35 @@ function MainAppContent() {
         buyerAvatar: user.photoURL
       });
     } catch (err) {
-      console.error('Error creating escrow order:', err);
+      console.error('Error creating chat order:', err);
       const message = err instanceof Error ? err.message : 'Неизвестная ошибка Firestore';
       toast.error(`Заказ не создан: ${message}`);
       return;
     }
 
-    try {
-      await createEscrowHold({
-        orderId,
-        productId: product.id,
-        productTitle: product.title,
-        price: product.price,
-        buyerId: user.uid,
-        buyerName: user.displayName,
-        sellerId: product.seller.id,
-        sellerName: product.seller.name,
-        ...details
-      });
-    } catch (err) {
-      console.error('Escrow hold failed:', err);
-      const message = err instanceof Error ? err.message : 'Неизвестная ошибка escrow backend';
-      toast.error(`Оплата не проведена: ${message}`);
-      return;
-    }
+    addModeratorReview({
+      id: `CHAT-${orderId}`,
+      title: `Новый чат по товару: ${product.title}`,
+      game: product.gameName,
+      sellerName: product.seller.name,
+      sellerEmail: '',
+      buyerName: user.displayName,
+      country: 'KZ',
+      countryName: 'Не указано',
+      price: product.price,
+      type: 'product_verification',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      reason: 'Оплата отключена. Модератору необходимо проследить за чатом. Площадка не гарантирует результат сделки.'
+    });
 
-    // Decrement stock by 1 only after the escrow hold is confirmed.
-    if (product.inStock && product.inStock > 0) {
-      const remainingStock = Math.max(0, product.inStock - 1);
-      try {
-        await updateProductInFirestore(product.id, { inStock: remainingStock });
-      } catch {
-        // Fallback for local / demo items
-      }
-      setProducts((prev) =>
-        prev.map((p) => (p.id === product.id ? { ...p, inStock: remainingStock } : p))
-      );
-    }
-
-    // Toast: 'Заказ принят'
-    setTimeout(() => {
-      notifyOrderAccepted({
-        orderId,
-        productTitle: product.title,
-        sellerName: product.seller.name
-      });
-    }, 500);
-
+    notifyOrderAccepted({
+      orderId,
+      productTitle: product.title,
+      sellerName: product.seller.name
+    });
     setActiveDealOrderId(orderId);
     setActiveDealProduct(product);
-    setEscrowProduct(null);
   };
 
   const handleCompleteDeal = (orderId: string) => {
@@ -401,14 +366,6 @@ function MainAppContent() {
           onStartDeal={handleStartDeal}
           userBalance={userBalance}
           onOpenTopup={() => setShowTopupModal(true)}
-        />
-      )}
-
-      {escrowProduct && (
-        <EscrowDetailsModal
-          productTitle={escrowProduct.title}
-          onClose={() => setEscrowProduct(null)}
-          onSubmit={handleEscrowDetails}
         />
       )}
 
