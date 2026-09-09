@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const app = express();
 const port = Number(process.env.PORT) || 10000;
@@ -10,8 +9,7 @@ const bccTokenUrl = process.env.BCC_OAUTH_TOKEN_URL || '';
 const bccClientId = process.env.BCC_CLIENT_ID || '';
 const bccClientSecret = process.env.BCC_CLIENT_SECRET || '';
 const bccScope = process.env.BCC_SCOPE || 'bcc.application.escrow.api';
-const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const frontendDirectory = path.join(projectRoot, 'dist');
+const frontendDirectory = path.join(process.cwd(), 'dist');
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || false }));
 app.use(express.json({ limit: '32kb' }));
