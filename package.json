@@ -7,7 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port $PORT",
-    "backend:start": ""backend:start": "tsx server.ts"",
+    "backend:start": "tsx server/server.ts",
     "backend:build": "tsc --outDir dist-server --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop server/server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -37,7 +37,7 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
-    "@types/express": "^4.17.21"
-    ,"@types/cors": "^2.8.17"
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17"
   }
 }
