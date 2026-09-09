@@ -36,6 +36,8 @@ import {
   OrderDoc 
 } from './lib/firestoreService';
 import { createEscrowHold } from './lib/escrowService';
+import { EscrowDetailsModal } from './components/EscrowDetailsModal';
+import type { EscrowPartyDetails } from './components/EscrowDetailsModal';
 
 function MainAppContent() {
   const { user, topupBalance } = useAuth();
@@ -52,6 +54,7 @@ function MainAppContent() {
   const [showTopupModal, setShowTopupModal] = useState<boolean>(false);
   const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
   const [showModeratorModal, setShowModeratorModal] = useState<boolean>(false);
+  const [escrowProduct, setEscrowProduct] = useState<Product | null>(null);
   
   // Mobile Navigation
   const [mobileTab, setMobileTab] = useState<string>('home');
@@ -97,11 +100,22 @@ function MainAppContent() {
 
   const userBalance = user ? user.balance : 0;
 
-  const handleStartDeal = async (product: Product) => {
+  const handleStartDeal = (product: Product) => {
     if (!user) {
       toast.error('Войдите в аккаунт перед оплатой.');
       return;
     }
+    setEscrowProduct(product);
+  };
+
+  const handleEscrowDetails = async (details: {
+    buyer: EscrowPartyDetails;
+    seller: EscrowPartyDetails;
+    city: string;
+    dueDate: string;
+  }) => {
+    const product = escrowProduct;
+    if (!product || !user) return;
 
     let orderId: string;
     try {
@@ -127,7 +141,8 @@ function MainAppContent() {
         buyerId: user.uid,
         buyerName: user.displayName,
         sellerId: product.seller.id,
-        sellerName: product.seller.name
+        sellerName: product.seller.name,
+        ...details
       });
     } catch (err) {
       console.error('Escrow hold failed:', err);
@@ -160,6 +175,7 @@ function MainAppContent() {
 
     setActiveDealOrderId(orderId);
     setActiveDealProduct(product);
+    setEscrowProduct(null);
   };
 
   const handleCompleteDeal = (orderId: string) => {
@@ -385,6 +401,14 @@ function MainAppContent() {
           onStartDeal={handleStartDeal}
           userBalance={userBalance}
           onOpenTopup={() => setShowTopupModal(true)}
+        />
+      )}
+
+      {escrowProduct && (
+        <EscrowDetailsModal
+          productTitle={escrowProduct.title}
+          onClose={() => setEscrowProduct(null)}
+          onSubmit={handleEscrowDetails}
         />
       )}
 
